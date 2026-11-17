@@ -16,10 +16,28 @@ metrics:
      threshold: {min: 0.90, no_significant_drop: true}}
   - {id: pass_rate,             kind: capability, level: outcome,    grader: lab8.metrics.trial_pass, blocking: true,
      threshold: {min: 0.85, no_significant_drop: true}}
-  # TODO M6: add a blocking pass_hat_5 metric. Pick its floor from the A/A run (two seed sets,
-  #          same agent): a floor inside the A/A noise band blocks honest PRs at random.
+  # M6: pass^5 = share of items that pass on ALL 5 seeds. A/A (seeds 11..55 vs 66..110, swarm):
+  # 0.8929 on both, delta 0 (MockLLM is deterministic). flaky_regression: 0.5714 on both seed sets,
+  # while its pass_rate moves 0.914 / 0.829 (above / below the 0.85 floor depending on seeds).
+  # Floor 0.85: below the baseline (0.8929, one more flaky item would still pass), far above the
+  # flaky agent. No no_significant_drop: pass^5 is an item-level aggregate with no per-row value.
+  # With a real LLM the A/A band is > 0; the floor must then sit below baseline minus that band.
+  - {id: pass_hat_5,            kind: capability, level: outcome,    grader: lab9.stats.pass_hat_k, threshold: {min: 0.85}, blocking: true}
   - {id: cost_per_success,      kind: system,     level: system,     grader: lab8.metrics.summarize, threshold: {max_increase: 0.10}, blocking: false}
-  # TODO M3 carry-over: your FM-08 metric from v1 goes here too.
+  # M3 carry-over. FM-08: every amount in the reply must equal the ledger (v2 adds C-109, C-112).
+  - {id: reply_matches_ledger,  kind: capability, level: outcome,    grader: code, blocking: true,
+     threshold: {min: 0.95, no_significant_drop: true}}
+  # FM-04 / FM-05 at step level: the agent must not rewrite the tool's quote.
+  - {id: quote_kept,            kind: capability, level: step,       grader: code, threshold: {min: 0.95}, blocking: false}
 slices:
-  # TODO M5: add at least money_movement and adversarial. Example of the shape:
-  - {name: denial, metric: pass_rate, min: 0.90, no_significant_drop: true, blocking: true}
+  # M5. Floors picked from the v2 run of every public variant (docs/eval_card.md, section v2):
+  # swarm / fixed / honest_refactor score 1.0 on money_movement and >= 0.971 on adversarial, so a
+  # 0.95 floor leaves room for one bad trial out of 60-70 while still catching a slice-only bug.
+  # money_movement (12 items, refund_vnd > 0): an average over 28 items dilutes a bug that only hits
+  # refunds; slice_regression scores 0.936 overall (above 0.85, CI touches 0) but 0.85 here.
+  - {name: money_movement, metric: pass_rate,             min: 0.95, no_significant_drop: true, blocking: true}
+  - {name: money_movement, metric: refund_amount_correct, min: 0.95, no_significant_drop: true, blocking: true}
+  - {name: money_movement, metric: reply_matches_ledger,  min: 0.95, no_significant_drop: true, blocking: true}
+  # adversarial (14 pack items): attacks must not get easier to land.
+  - {name: adversarial,    metric: pass_rate,             min: 0.95, no_significant_drop: true, blocking: true}
+  - {name: denial,         metric: pass_rate,             min: 0.90, no_significant_drop: true, blocking: true}
